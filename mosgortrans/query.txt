@@ -1,0 +1,47 @@
+﻿Запрос к БД с параметром. Результатом имеем 2 столбца с плановым выходом по маршрутам в дату @x
+Алгоритм составления запроса описан в задании 1.
+
+
+declare @x date
+set @x='2017-05-09'
+
+//считаем количество ТС по каждому маршруту
+select q2.num [Номер маршрута], COUNT(*) [Плановый выход] from
+(
+
+//в этом подзапросе получаем уникальные номера ТС по маршрутам на заданную дату. Одно ТС может выполнять несколько различных рейсов (туда или обратно) в рамках одного маршрута
+select distinct q1.[Номер маршрута] num, q1.gr ent  from
+(
+
+//в данном подзапросе получаем информацию о том какие ТС выходят на каждый рейс, назначенный на заданную дату
+select count(*) counted, t.route_id [Номер маршрута], t.trip_id tr, s.grafic gr from STOP_TIMES s INNER JOIN (TRIPS t INNER JOIN CALENDAR c ON t.route_id=c.route_id) ON s.trip_id = t.trip_id where 
+(
+
+//проверяем находится ли дата в интервале между концом действия расписания и началом
+//если дата is null то расписание действует бессрочно
+(c.start_date<@x) AND
+ ((c.end_date>@x) OR (c.end_date is null)) AND
+
+ //проверка попадания в день недели
+ (
+ (DATEPART(dw,@x) = 0) AND (c.sunday=1) OR
+ (DATEPART(dw,@x) = 1) AND (c.monday=1) OR
+ (DATEPART(dw,@x) = 2) AND (c.tuesday=1) OR
+ (DATEPART(dw,@x) = 3) AND (c.wednesday=1) OR
+ (DATEPART(dw,@x) = 4) AND (c.thursday=1) OR
+ (DATEPART(dw,@x) = 5) AND (c.friday=1) OR
+ (DATEPART(dw,@x) = 6) AND (c.saturday=1)
+ )
+
+ //отсекаем те рейсы, чьё шорт нейм начинается с Ч
+ AND (t.trip_short_name NOT LIKE 'Ч%')
+)
+group by t.route_id, t.trip_id, s.grafic
+
+
+) q1
+
+
+) q2
+group by q2.num
+order by q2.num asc
